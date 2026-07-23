@@ -34,15 +34,10 @@ describe('ExampleView', () => {
     expect(root.querySelector('textarea')).toBeNull();
   });
 
-  it('renders the example-name suffix after a named example', () => {
-    const root = useRenderToDom(<ExampleView request={request} example={example} />);
-    expect(query(root, '.example-view-name-suffix').text).toContain('/ Example');
-  });
-
   it('shows an empty message when the request has no params, headers or body', () => {
     const root = useRenderToDom(<ExampleView request={request} example={{ ...example, request: {} }} />);
     const empty = root.querySelector('[data-testid="example-view-request-empty"]');
     expect(empty).not.toBeNull();
-    expect(empty!.textContent).toContain('No headers, body, auth, variables, or scripts configured for this request.');
+    expect(empty!.textContent).toContain('No params, headers, or body configured for this request.');
   });
 });

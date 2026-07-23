@@ -8,6 +8,8 @@ export class PlaygroundComponent extends BaseComponent {
   readonly keyValueTable = new KeyValueTableComponent(this.page);
   readonly preRequestScriptEditor = new CodeEditorComponent(this.page, 'scripts-editor-pre-request');
   readonly postResponseScriptEditor = new CodeEditorComponent(this.page, 'scripts-editor-post-response');
+  readonly bodyEditor = new CodeEditorComponent(this.page, 'body-editor');
+  readonly testsEditor = new CodeEditorComponent(this.page, 'tests-editor');
 
   readonly header = this.page.getByTestId('playground-header');
   readonly switcher = this.page.getByTestId('playground-dock-switcher');
@@ -94,6 +96,7 @@ export class PlaygroundComponent extends BaseComponent {
 
   async openRequest(name: string): Promise<void> {
     await this.treeItems.filter({ hasText: name }).first().click();
+    await this.view.waitFor({ state: 'visible' });
   }
 
   async openEnvironments(): Promise<void> {
@@ -112,7 +115,13 @@ export class PlaygroundComponent extends BaseComponent {
   }
 
   async selectTab(id: string): Promise<void> {
-    await this.tab(id).click();
+    const direct = this.tab(id);
+    if ((await direct.count()) > 0 && (await direct.isVisible())) {
+      await direct.click();
+      return;
+    }
+    await this.page.getByTestId('tabs-more').click();
+    await this.page.getByTestId(`tabs-more-${id}`).click();
   }
 
   async close(): Promise<void> {

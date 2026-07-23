@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { OpenCollection } from '@opencollection/types';
 import Tabs from '../../../../../ui/Tabs/Tabs';
+import TitleLabel from '../../../../TitleLabel/TitleLabel';
 import { type KeyValueRow } from '../../../../../components/KeyValueTable/KeyValueTable';
 import HeadersTab from '../Common/HeadersTab/HeadersTab';
 import VariablesTab from '../Common/VariablesTab/VariablesTab';
@@ -154,15 +155,14 @@ const CollectionSettings: React.FC<CollectionSettingsProps> = ({ collection }) =
 
   return (
     <StyledWrapper>
-      <div className="collection-settings-header">
-        <h2 className="collection-settings-title">
-          {collection.info?.name || 'Collection Settings'}
-        </h2>
+      <div className="collection-settings-header mb-2">
+        <TitleLabel>{collection.info?.name || 'Collection Settings'}</TitleLabel>
         {version && <span className="collection-settings-version">Version {version}</span>}
       </div>
 
       <div className="collection-settings-tabs">
         <Tabs
+          variant="responsive"
           tabs={tabs.map((tab) => ({
             ...tab,
             content: <div className="collection-settings-tab-content">{tab.content}</div>

@@ -164,6 +164,7 @@ const RequestPane: React.FC<RequestPaneProps> = ({ item, onItemChange }) => {
       body={body}
       onItemChange={onItemChange}
       item={item}
+      fillHeight
     />
   );
 
@@ -184,6 +185,7 @@ const RequestPane: React.FC<RequestPaneProps> = ({ item, onItemChange }) => {
       onScriptChange={handleScriptChange}
       showTests={false}
       description="Pre and post-request scripts that run before and after this request is sent."
+      fillHeight
     />
   );
 
@@ -199,6 +201,7 @@ const RequestPane: React.FC<RequestPaneProps> = ({ item, onItemChange }) => {
     <TestsTab
       scripts={scriptsObj}
       onScriptChange={handleScriptChange}
+      fillHeight
     />
   );
 
@@ -279,6 +282,7 @@ const RequestPane: React.FC<RequestPaneProps> = ({ item, onItemChange }) => {
   return (
     <StyledWrapper>
       <Tabs
+        variant="responsive"
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
