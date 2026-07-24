@@ -158,7 +158,7 @@ const OpenCollection: React.FC<OpenCollectionProps> = (props) => {
   }
 
   return (
-    <HashRouter>
+    <HashRouter useTransitions={false}>
       <Provider store={storeRef.current!}>
         <VariableResolverProvider>
           <OpenCollectionContent {...props} />
