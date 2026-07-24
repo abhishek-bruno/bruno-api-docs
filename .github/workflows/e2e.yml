@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: packages/oc-docs
+        working-directory: packages/bruno-api-docs
     steps:
       - uses: actions/checkout@v4
 
@@ -31,5 +31,5 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: packages/oc-docs/playwright-report/
+          path: packages/bruno-api-docs/playwright-report/
           retention-days: 30

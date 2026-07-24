@@ -1,8 +1,8 @@
 {
-  "name": "opencollection",
+  "name": "bruno-api-docs",
   "private": true,
   "workspaces": [
-    "packages/oc-docs"
+    "packages/bruno-api-docs"
   ],
   "homepage": "https://www.opencollection.com"
 }
