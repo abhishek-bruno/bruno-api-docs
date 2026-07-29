@@ -1,8 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
 import { useAppSelector } from '../../store/hooks';
+import { useResolvedVariables } from '../../hooks/useVariableResolver';
 import { CopyButton } from '../CopyButton/CopyButton';
+import { Portal } from '../Portal/Portal';
 import { ensureScriptApiCompletions, setModelHints } from './scriptApiCompletions';
+import { createVariableDecorator, type VariableDecorator } from './variableDecorations';
+import { createVariableHover, type VariableHover } from './variableHoverWidget';
 import type { ScriptApiRoot } from '../../utils/scriptAutocomplete';
 import { StyledWrapper } from './StyledWrapper';
 
@@ -20,6 +24,10 @@ interface CodeEditorProps {
   /** Show a copy-to-clipboard button (revealed on hover, top-right). Defaults to on. */
   showCopy?: boolean;
   active?: boolean;
+  /** Highlight `{{var}}` tokens (green resolved / red unresolved) against the active environment. */
+  variableAware?: boolean;
+  /** Renders the card shown when a `{{var}}` token is hovered. Without it, tokens only highlight. */
+  renderVariableCard?: (name: string) => React.ReactNode;
   testId?: string;
 }
 
@@ -51,18 +59,52 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   hintsFor,
   showCopy = true,
   active = true,
+  variableAware = false,
+  renderVariableCard,
   testId
 }) => {
   const mode = useAppSelector((s) => s.theme.mode);
+  const resolver = useResolvedVariables();
   const editorRef = useRef<EditorInstance | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const decoratorRef = useRef<VariableDecorator | null>(null);
+  const hoverRef = useRef<VariableHover | null>(null);
+  const isFoundRef = useRef(resolver.isFound);
+  const [hoveredVariable, setHoveredVariable] = useState<{ name: string; node: HTMLElement } | null>(null);
 
   useEffect(() => {
     if (active && editorRef.current) editorRef.current.layout();
   }, [active]);
 
+  useEffect(() => {
+    isFoundRef.current = resolver.isFound;
+  }, [resolver]);
+
+  const variableSignature = resolver.names.join('\n');
+  useEffect(() => {
+    decoratorRef.current?.refresh();
+  }, [resolver.activeEnvName, variableSignature]);
+
+  useEffect(
+    () => () => {
+      decoratorRef.current?.dispose();
+      decoratorRef.current = null;
+      hoverRef.current?.dispose();
+      hoverRef.current = null;
+    },
+    []
+  );
+
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+
+    if (variableAware) {
+      decoratorRef.current = createVariableDecorator(editor, monaco, () => isFoundRef.current);
+      hoverRef.current = createVariableHover(editor, monaco, {
+        onOpen: (name, node) => setHoveredVariable({ name, node }),
+        onClose: () => setHoveredVariable(null)
+      });
+    }
 
     const mono = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim();
     if (mono) editor.updateOptions({ fontFamily: mono });
@@ -133,6 +175,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           lineDecorationsWidth: 12,
           lineNumbersMinChars: 2,
           automaticLayout: true,
+          // Renders the hover card in a fixed-position container so it escapes the editor's
+          // `overflow: hidden` wrapper instead of being clipped in a narrow pane.
+          fixedOverflowWidgets: true,
           placeholder,
           renderLineHighlight: 'none',
           guides: { indentation: false, highlightActiveIndentation: false, bracketPairs: false },
@@ -147,6 +192,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           className="code-editor-copy"
           testId={testId ? `${testId}-copy` : undefined}
         />
+      ) : null}
+      {hoveredVariable && renderVariableCard ? (
+        <Portal container={hoveredVariable.node}>
+          <React.Fragment key={hoveredVariable.name}>{renderVariableCard(hoveredVariable.name)}</React.Fragment>
+        </Portal>
       ) : null}
     </StyledWrapper>
   );

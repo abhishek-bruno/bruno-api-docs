@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useResolvedVariables } from '../../hooks';
 import { CopyButton } from '../../ui/CopyButton/CopyButton';
 import { SCOPE_LABELS, INVALID_NAME_WARNING } from '../../constants';
 import type { VariableScope } from '../../utils/variableResolution';
 import { StyledWrapper } from './StyledWrapper';
 
+const EDITABLE_SCOPES = new Set<VariableScope>(['environment', 'collection', 'folder', 'request']);
+
 interface VariableInfoCardProps {
   name: string;
+  editable?: boolean;
   testId?: string;
 }
 
@@ -16,9 +19,52 @@ const getReadOnlyNote = (scope: VariableScope, activeEnvName: string | null): st
   return null;
 };
 
-export const VariableInfoCard: React.FC<VariableInfoCardProps> = ({ name, testId = 'variable-info-card' }) => {
-  const { lookup, activeEnvName } = useResolvedVariables();
+export const VariableInfoCard: React.FC<VariableInfoCardProps> = ({
+  name,
+  editable = false,
+  testId = 'variable-info-card'
+}) => {
+  const { lookup, activeEnvName, updateVariable, canWrite } = useResolvedVariables();
   const info = lookup(name);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = editRef.current;
+    if (!editing || !el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [editing, draft]);
+
+  const canEdit
+    = editable
+      && canWrite
+      && info.valid
+      && !info.secret
+      && info.simpleString
+      && EDITABLE_SCOPES.has(info.scope)
+      && (info.scope !== 'environment' || !!activeEnvName);
+
+  const startEditing = () => {
+    setDraft(info.rawValue);
+    setEditing(true);
+  };
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== info.rawValue) updateVariable(info.name, draft);
+  };
+
+  const handleEditKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      commit();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setEditing(false);
+    }
+  };
 
   const header = (
     <div className="var-info-header">
@@ -66,33 +112,83 @@ export const VariableInfoCard: React.FC<VariableInfoCardProps> = ({ name, testId
   }
 
   const readOnlyNote = getReadOnlyNote(info.scope, activeEnvName);
-  const placeholder = info.secret ? '(Secret)' : info.value === '' ? '(empty)' : null;
+  const emptyLabel = info.value === '' ? '(empty)' : null;
+  const placeholder = info.secret ? '(Secret)' : canEdit ? null : emptyLabel;
+
+  const copyButton = (
+    <div className="var-icons">
+      <CopyButton
+        text={info.value}
+        label="Copy value"
+        resetAfterMs={1000}
+        className="copy-button"
+        testId={`${testId}-copy`}
+      />
+    </div>
+  );
+
+  const placeholderNode = (
+    <div className="var-value-display var-value-placeholder" data-testid={`${testId}-value`}>
+      {placeholder}
+    </div>
+  );
+
+  const editFieldNode = (
+    <textarea
+      ref={editRef}
+      className="var-value-edit"
+      data-testid={`${testId}-edit`}
+      aria-label={`Edit ${info.name}`}
+      value={draft}
+      autoFocus
+      rows={1}
+      spellCheck={false}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={handleEditKeyDown}
+      onBlur={commit}
+    />
+  );
+
+  const editableDisplayNode = (
+    <>
+      <div
+        className="var-value-display var-value-editable"
+        data-testid={`${testId}-value`}
+        role="button"
+        tabIndex={0}
+        title="Click to edit"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          startEditing();
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          startEditing();
+        }}
+      >
+        {emptyLabel ?? info.value}
+      </div>
+      {copyButton}
+    </>
+  );
+
+  const readOnlyDisplayNode = (
+    <>
+      <div className="var-value-display" data-testid={`${testId}-value`}>
+        {info.value}
+      </div>
+      {copyButton}
+    </>
+  );
+
+  const editableNode = editing ? editFieldNode : editableDisplayNode;
+  const valueNode = placeholder ? placeholderNode : canEdit ? editableNode : readOnlyDisplayNode;
 
   return (
     <StyledWrapper className="variable-info-card" data-testid={testId}>
       {header}
-      <div className="var-value-container">
-        {placeholder ? (
-          <div className="var-value-display var-value-placeholder" data-testid={`${testId}-value`}>
-            {placeholder}
-          </div>
-        ) : (
-          <>
-            <div className="var-value-display" data-testid={`${testId}-value`}>
-              {info.value}
-            </div>
-            <div className="var-icons">
-              <CopyButton
-                text={info.value}
-                label="Copy value"
-                resetAfterMs={1000}
-                className="copy-button"
-                testId={`${testId}-copy`}
-              />
-            </div>
-          </>
-        )}
-      </div>
+      <div className="var-value-container">{valueNode}</div>
       {readOnlyNote && (
         <div className="var-readonly-note" data-testid={`${testId}-note`}>
           {readOnlyNote}

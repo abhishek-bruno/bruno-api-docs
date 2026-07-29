@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { createOpenCollectionStore } from '../../store/store';
 import { setDocsCollection } from '../../store/slices/docs';
 import { setActiveEnv } from '../../store/slices/env';
-import { VariableResolverProvider } from '../../hooks';
+import { VariableResolverProvider, ItemVariableResolverProvider } from '../../hooks';
 import { useRenderToDom } from '../../hooks/useRenderToDom';
 import { query } from '../../test-utils/dom';
 import { VariableInfoCard } from './VariableInfoCard';
@@ -24,7 +24,14 @@ const collection: any = {
           { name: 'host', value: 'https://dev.test' },
           { name: 'endpoint', value: '{{host}}/v1' },
           { name: 'bearer_token', value: 'super-secret', secret: true },
-          { name: 'emptyValue', value: '' }
+          { name: 'emptyValue', value: '' },
+          {
+            name: 'variantValue',
+            value: [
+              { title: 'first', selected: true, value: 'one' },
+              { title: 'second', value: 'two' }
+            ]
+          }
         ]
       }
     ]
@@ -119,5 +126,83 @@ describe('VariableInfoCard', () => {
     const root = useRenderToDom(cardTree('nope'));
     expect(part(root, 'scope').text).toBe('Undefined');
     expect(part(root, 'note').text).toBe('Variable is not defined');
+  });
+});
+
+// Editing needs a writable resolver, which only ItemVariableResolverProvider supplies.
+const editableCardTree = (name: string) => {
+  const store = createOpenCollectionStore();
+  store.dispatch(setActiveEnv('Dev'));
+  return (
+    <Provider store={store}>
+      <ItemVariableResolverProvider collection={collection} ancestry={[]} item={null} writable>
+        <VariableInfoCard name={name} editable />
+      </ItemVariableResolverProvider>
+    </Provider>
+  );
+};
+
+describe('VariableInfoCard (editable)', () => {
+  it('renders an editable value for an environment variable', () => {
+    const value = part(useRenderToDom(editableCardTree('host')), 'value');
+    expect(value.getAttribute('role')).toBe('button');
+    expect(value.classList.contains('var-value-editable')).toBe(true);
+  });
+
+  it('renders an editable value for a collection variable', () => {
+    const value = part(useRenderToDom(editableCardTree('apiVersion')), 'value');
+    expect(value.classList.contains('var-value-editable')).toBe(true);
+  });
+
+  it('stays read-only by default (docs surfaces do not pass editable)', () => {
+    const value = part(useRenderToDom(cardTree('host')), 'value');
+    expect(value.classList.contains('var-value-editable')).toBe(false);
+    expect(value.getAttribute('role')).toBeFalsy();
+  });
+
+  it('stays read-only when the resolver cannot write, even with editable set', () => {
+    const store = createOpenCollectionStore();
+    store.dispatch(setDocsCollection(collection));
+    store.dispatch(setActiveEnv('Dev'));
+    const tree = (
+      <Provider store={store}>
+        <VariableResolverProvider>
+          <VariableInfoCard name="host" editable />
+        </VariableResolverProvider>
+      </Provider>
+    );
+    const value = part(useRenderToDom(tree), 'value');
+    expect(value.classList.contains('var-value-editable')).toBe(false);
+  });
+
+  it('keeps an empty editable value clickable rather than showing the placeholder', () => {
+    const value = part(useRenderToDom(editableCardTree('emptyValue')), 'value');
+    expect(value.text).toBe('(empty)');
+    expect(value.classList.contains('var-value-editable')).toBe(true);
+    expect(value.classList.contains('var-value-placeholder')).toBe(false);
+  });
+
+  it('never makes a secret variable editable', () => {
+    const value = part(useRenderToDom(editableCardTree('bearer_token')), 'value');
+    expect(value.text).toBe('(Secret)');
+    expect(value.classList.contains('var-value-editable')).toBe(false);
+  });
+
+  it('never makes a read-only scope (process.env) editable', () => {
+    const root = useRenderToDom(editableCardTree('process.env.HOME'));
+    expect(part(root, 'note').text).toBe('read-only');
+    expect(part(root, 'value').classList.contains('var-value-editable')).toBe(false);
+  });
+
+  // Editing these as text would drop the stored shape, so they stay read-only.
+  it('never makes an object-typed value editable', () => {
+    const value = part(useRenderToDom(editableCardTree('profile')), 'value');
+    expect(value.classList.contains('var-value-editable')).toBe(false);
+  });
+
+  it('never makes a value with multiple variants editable', () => {
+    const value = part(useRenderToDom(editableCardTree('variantValue')), 'value');
+    expect(value.text).toBe('one');
+    expect(value.classList.contains('var-value-editable')).toBe(false);
   });
 });

@@ -1134,3 +1134,9 @@ tr.themed-row:nth-child(even) {
   transform: translateY(-50%);
   opacity: 0;
 }
+
+.variable-hover-widget {
+  z-index: var(--z-popover);
+  border-radius: var(--oc-radius);
+  box-shadow: var(--shadow-md);
+}
