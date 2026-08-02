@@ -6,8 +6,18 @@ import ScriptRuntime from '../scripting/runtime/script-runtime';
 import AssertRuntime, { type AssertionResult } from '../scripting/runtime/assert-runtime';
 import { getTreePathFromCollectionToItem, mergeHeaders, mergeScripts, mergeAuth, interpolateVars } from './utils';
 import { getCollectionFolderRequestVariables } from './utils/variable-merger';
-import { coerceVariableValue, parseValueByDataType } from '../utils/variableDataType';
+import { coerceVariableValue, parseValueByDataType, type CoercedVariableValue } from '../utils/variableDataType';
+import { externalSecretValues, type ExternalSecretEntry } from '../utils/variableResolution';
+import type { VariableValueOrVariants, VariableValueType } from '@opencollection/types/common/variables';
 import { getRequestScripts, getRequestAssertions, scriptsArrayToObject } from '../utils/schemaHelpers';
+
+interface DeclaredEnvironmentVariable {
+  name?: string;
+  value?: VariableValueOrVariants;
+  type?: VariableValueType;
+  secret?: boolean;
+  disabled?: boolean;
+}
 
 export interface RunRequestOptions {
   item: HttpRequest;
@@ -210,20 +220,26 @@ export class RequestRunner {
   }
 
   private getEnvironmentVariables(environment?: Environment): Record<string, any> {
-    if (!environment?.variables) return {};
+    // External secrets are referenced as ordinary `{{name}}` variables, so they
+    // go in first and a variable declared on the environment with the same name
+    // takes precedence over them.
+    const externalSecrets = externalSecretValues(
+      environment?.externalSecrets?.variables as ExternalSecretEntry[] | undefined
+    );
+    if (!environment?.variables) return externalSecrets;
 
-    return environment.variables.reduce((vars, variable: any) => {
+    return environment.variables.reduce((vars, variable: DeclaredEnvironmentVariable) => {
       const name = variable.name;
       if (name && !variable.disabled) {
         // Coerce typed values (number/boolean/object) to native, like folder/collection/request vars.
         // A secret carries its data type as a sibling `type` (value is a plain string), whereas a
         // non-secret nests it inside the value — so coerce each from the right place.
         vars[name] = variable.secret
-          ? parseValueByDataType(variable.value, variable.type)
+          ? parseValueByDataType(variable.value as CoercedVariableValue, variable.type)
           : coerceVariableValue(variable.value);
       }
       return vars;
-    }, {} as Record<string, any>);
+    }, { ...externalSecrets } as Record<string, unknown>);
   }
 
   private async preprocessRequest(

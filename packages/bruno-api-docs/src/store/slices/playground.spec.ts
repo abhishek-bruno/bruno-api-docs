@@ -31,6 +31,10 @@ const makeCollection = () =>
 const envVariables = (store: ReturnType<typeof createOpenCollectionStore>) =>
   selectHydratedCollection(store.getState())!.config!.environments![0].variables!;
 
+const envExternalSecrets = (store: ReturnType<typeof createOpenCollectionStore>) =>
+  (selectHydratedCollection(store.getState())!.config!.environments![0].externalSecrets!
+    .variables as unknown) as { name: string; value?: string; secretName?: string }[];
+
 describe('resetPlaygroundEnvironments', () => {
   it('restores the original environments after an edit', () => {
     const store = createOpenCollectionStore();
@@ -155,16 +159,33 @@ describe('setPlaygroundVariable', () => {
     expect(item.variables.find((v) => v.name === 'rv').value).toBe('2');
   });
 
-  it('never writes to a secret variable', () => {
+  it('writes a session value to a secret variable, keeping it marked secret', () => {
     const collection = makeCollection();
     collection.config.environments[0].variables.push({ name: 'sec', secret: true });
     const store = createOpenCollectionStore();
     store.dispatch(setPlaygroundCollection(collection));
 
-    store.dispatch(setPlaygroundVariable({ scope: 'environment', name: 'sec', value: 'leak', envName: 'Dev' }));
+    store.dispatch(setPlaygroundVariable({ scope: 'environment', name: 'sec', value: 'typed', envName: 'Dev' }));
 
-    const sec = envVariables(store).find((v: any) => v.name === 'sec');
-    expect((sec as any).value).toBeUndefined();
+    const sec = envVariables(store).find((v) => v.name === 'sec') as { value: string; secret: boolean };
+    expect(sec.value).toBe('typed');
+    expect(sec.secret).toBe(true);
+  });
+
+  it('writes a session value to an external secret pointer', () => {
+    const collection = makeCollection();
+    collection.config.environments[0].externalSecrets = {
+      type: 'aws-secrets-manager',
+      variables: [{ name: 'vaultKey', secretName: 'prod/api-key' }]
+    };
+    const store = createOpenCollectionStore();
+    store.dispatch(setPlaygroundCollection(collection));
+
+    store.dispatch(setPlaygroundVariable({ scope: '$secrets', name: 'vaultKey', value: 'typed', envName: 'Dev' }));
+
+    const [vaultKey] = envExternalSecrets(store);
+    expect(vaultKey.value).toBe('typed');
+    expect(vaultKey.secretName).toBe('prod/api-key');
   });
 });
 

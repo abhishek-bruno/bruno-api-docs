@@ -103,7 +103,47 @@ export type VariableScope
     | '$secrets'
     | 'undefined';
 
-export type ConcreteScope = 'collection' | 'environment' | 'folder' | 'request';
+/** Scopes a variable can actually be declared in, `$secrets` being an environment's external secrets. */
+export type ConcreteScope = 'collection' | 'environment' | 'folder' | 'request' | '$secrets';
+
+/**
+ * One entry from an environment's "external secrets" list: a secret whose real
+ * value lives in a secrets manager such as AWS Secrets Manager or Vault, rather
+ * than in the collection itself.
+ *
+ * - `name` is how the collection refers to it, written as `{{name}}`.
+ * - `value` is filled in only when someone types one in the playground. A browser
+ *   cannot reach the secrets manager, so there is no other way to get a value.
+ * - The on/off switch is written as `enabled` by some collections and `disabled`
+ *   by others, so either may be present. Read it with `isExternalSecretActive`
+ *   rather than checking a field directly.
+ *
+ * The key used to look the secret up in the manager is stored under a field whose
+ * name varies by provider (`secretName`, `path`, and others), so it is not listed
+ * here. Nothing in the playground reads it.
+ */
+export interface ExternalSecretEntry {
+  name?: string;
+  value?: string;
+  disabled?: boolean;
+  enabled?: boolean;
+}
+
+/** True unless either spelling of the toggle says the secret is switched off. */
+export const isExternalSecretActive = (entry: ExternalSecretEntry): boolean =>
+  entry.disabled !== true && entry.enabled !== false;
+
+/**
+ * External secret values for interpolation, keyed by the name the collection
+ * references. An entry someone cleared to an empty string is kept, because that
+ * is a value they chose. An entry nobody ever filled in is skipped, so
+ * `{{name}}` is sent as-is rather than as an empty string.
+ */
+export const externalSecretValues = (entries: ExternalSecretEntry[] | undefined): Record<string, string> =>
+  (entries ?? []).reduce((values, entry) => {
+    if (entry.name && isExternalSecretActive(entry) && entry.value !== undefined) values[entry.name] = entry.value;
+    return values;
+  }, {} as Record<string, string>);
 
 export interface VariableSource {
   scope: ConcreteScope;

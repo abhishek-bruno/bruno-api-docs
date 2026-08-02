@@ -7,6 +7,9 @@ export class VariableCardComponent extends BaseComponent {
   readonly scopeBadge = this.card.getByTestId('variable-info-card-scope');
   readonly value = this.card.getByTestId('variable-info-card-value');
   readonly copyButton = this.card.getByTestId('variable-info-card-copy');
+  // Present only while the copy button is showing its confirmation, which clears
+  // itself after a second, so a test should assert it in one step.
+  readonly copiedTick = this.card.getByTestId('variable-info-card-copy-tick');
   readonly revealToggle = this.card.getByTestId('variable-info-card-reveal');
   readonly note = this.card.getByTestId('variable-info-card-note');
   readonly warning = this.card.getByTestId('variable-info-card-warning');

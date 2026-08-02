@@ -75,6 +75,16 @@ test.describe('Variable hover card', () => {
     await expect(variableCard.copyButton).toHaveCount(0);
   });
 
+  // Only the playground can fill an external secret in, so the docs leave it unresolved.
+  test('leaves an external secret undefined', async ({ requestPage }) => {
+    const { variableCard } = requestPage;
+    await variableCard.hoverToken('vaultKey');
+
+    await expect(variableCard.card).toBeVisible();
+    await expect(variableCard.scopeBadge).toHaveText('Undefined');
+    await expect(variableCard.note).toHaveText('Variable is not defined');
+  });
+
   test('shows an (empty) placeholder with no copy for a defined variable that has no value', async ({ requestPage }) => {
     const { variableCard } = requestPage;
     await variableCard.hoverToken('emptyValue');
@@ -131,6 +141,21 @@ test.describe('Variable hover card', () => {
 
     await variableCard.copyButton.click();
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('2024-01');
+  });
+
+  test('turns the copy glyph into a green tick while copied, then reverts', async ({ page, requestPage }) => {
+    const { variableCard } = requestPage;
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    await variableCard.pinToken('apiVersion');
+    await expect(variableCard.card).toBeVisible();
+
+    await expect(variableCard.copiedTick).toHaveCount(0);
+
+    await variableCard.copyButton.click();
+
+    await expect(variableCard.copiedTick).toBeVisible();
+    await expect(variableCard.copiedTick).toHaveCount(0, { timeout: 3000 });
   });
 
   test('is read-only — no editor inside the card', async ({ requestPage }) => {

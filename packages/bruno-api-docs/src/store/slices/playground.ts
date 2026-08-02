@@ -8,7 +8,6 @@ import type { Variable, SecretVariable } from '@opencollection/types/common/vari
 import type { RootState } from '../store';
 import { hydrateWithUUIDs, findAndUpdateItem } from '../../utils/fileUtils';
 import { isFolder, getRequestVariables } from '../../utils/schemaHelpers';
-import { isSecretVariable } from '../../utils/variableResolution';
 import type { ResponseBodyFormat } from '@/constants';
 
 export type ViewMode = 'playground' | 'environments' | 'folder-settings' | 'collection-settings' | 'example';
@@ -236,7 +235,7 @@ const playgroundSlice = createSlice({
     setPlaygroundVariable: (
       state: PlaygroundState,
       action: PayloadAction<{
-        scope: 'environment' | 'collection' | 'folder' | 'request';
+        scope: 'environment' | 'collection' | 'folder' | 'request' | '$secrets';
         name: string;
         value: string;
         envName?: string;
@@ -244,14 +243,19 @@ const playgroundSlice = createSlice({
       }>
     ) => {
       const { scope, name, value, envName, itemUuid } = action.payload;
+      // Secret variables are writable. Their values only ever live on this
+      // in-memory copy of the collection, which is rebuilt from the source on
+      // reload and never written back, so nothing typed here is persisted.
       const setInList = (list: (Variable | SecretVariable)[] | undefined): void => {
         const enabled = (list ?? []).filter((v) => v.name === name && !v.disabled);
-        const variable = enabled[enabled.length - 1];
-        if (variable && !isSecretVariable(variable)) variable.value = value;
+        const variable = enabled[enabled.length - 1] as (Variable & { value?: string }) | undefined;
+        if (variable) variable.value = value;
       };
       const apply = (collection: OpenCollectionCollection | null) => {
         if (!collection) return;
-        if (scope === 'environment') {
+        if (scope === '$secrets') {
+          setInList(readEnvironments(collection)?.find((env) => env.name === envName)?.externalSecrets?.variables);
+        } else if (scope === 'environment') {
           setInList(readEnvironments(collection)?.find((env) => env.name === envName)?.variables);
         } else if (scope === 'collection') {
           setInList(collection.request?.variables as (Variable | SecretVariable)[] | undefined);

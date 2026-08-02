@@ -24,6 +24,7 @@ const collection: any = {
           { name: 'host', value: 'https://dev.test' },
           { name: 'endpoint', value: '{{host}}/v1' },
           { name: 'bearer_token', value: 'super-secret', secret: true },
+          { name: 'unsetSecret', secret: true },
           { name: 'emptyValue', value: '' },
           {
             name: 'variantValue',
@@ -32,7 +33,11 @@ const collection: any = {
               { title: 'second', value: 'two' }
             ]
           }
-        ]
+        ],
+        externalSecrets: {
+          type: 'aws-secrets-manager',
+          variables: [{ name: 'vaultKey', secretName: 'prod/api-key' }]
+        }
       }
     ]
   }
@@ -82,6 +87,23 @@ describe('VariableInfoCard', () => {
     expect(part(root, 'scope').text).toBe('Environment');
     expect(part(root, 'value').text).toBe('(empty)');
     expect(root.querySelector(selector('copy'))).toBeNull();
+  });
+
+  // The docs reach this card through two different providers, so both have to
+  // leave external secrets unresolved. PageRouter uses the second one.
+  it('does not resolve an external secret on either docs provider', () => {
+    expect(part(useRenderToDom(cardTree('vaultKey')), 'scope').text).toBe('Undefined');
+
+    const store = createOpenCollectionStore();
+    store.dispatch(setActiveEnv('Dev'));
+    const docsItemTree = (
+      <Provider store={store}>
+        <ItemVariableResolverProvider collection={collection} ancestry={[]} item={null}>
+          <VariableInfoCard name="vaultKey" />
+        </ItemVariableResolverProvider>
+      </Provider>
+    );
+    expect(part(useRenderToDom(docsItemTree), 'scope').text).toBe('Undefined');
   });
 
   it('pretty-prints an object-typed value', () => {
@@ -182,10 +204,32 @@ describe('VariableInfoCard (editable)', () => {
     expect(value.classList.contains('var-value-placeholder')).toBe(false);
   });
 
-  it('never makes a secret variable editable', () => {
-    const value = part(useRenderToDom(editableCardTree('bearer_token')), 'value');
-    expect(value.text).toBe('(Secret)');
-    expect(value.classList.contains('var-value-editable')).toBe(false);
+  it('masks a secret, offers reveal and copy, and makes it editable', () => {
+    const root = useRenderToDom(editableCardTree('bearer_token'));
+    const value = part(root, 'value');
+    expect(value.text).toBe('*'.repeat('super-secret'.length));
+    expect(root.toString()).not.toContain('super-secret');
+    expect(value.classList.contains('var-value-editable')).toBe(true);
+    expect(root.querySelector(selector('reveal'))).not.toBeNull();
+    expect(root.querySelector(selector('copy'))).not.toBeNull();
+  });
+
+  it('shows a declared external secret as blank and editable, with reveal and copy', () => {
+    const root = useRenderToDom(editableCardTree('vaultKey'));
+    expect(part(root, 'scope').text).toBe('Secret');
+    expect(part(root, 'value').text).toBe('');
+    expect(part(root, 'value').classList.contains('var-value-editable')).toBe(true);
+    expect(root.querySelector(selector('reveal'))).not.toBeNull();
+    expect(root.querySelector(selector('copy'))).not.toBeNull();
+    expect(root.querySelector(selector('note'))).toBeNull();
+  });
+
+  // The app shows copy on every card, so an unfilled secret keeps it too.
+  it('offers copy on a secret with no value yet', () => {
+    const root = useRenderToDom(editableCardTree('unsetSecret'));
+    expect(part(root, 'value').text).toBe('');
+    expect(root.querySelector(selector('copy'))).not.toBeNull();
+    expect(root.querySelector(selector('reveal'))).not.toBeNull();
   });
 
   it('never makes a read-only scope (process.env) editable', () => {

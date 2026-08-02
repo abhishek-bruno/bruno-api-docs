@@ -16,9 +16,10 @@ import {
   singleReferenceName,
   detectSpecialScope,
   isValidVariableName,
+  isExternalSecretActive,
   formatEntryValue,
   referencesSecret,
-  isSecretVariable,
+  type ExternalSecretEntry,
   type ScopedVariableModel,
   type VariableScope,
   type VariableSource
@@ -110,14 +111,26 @@ const makeResolver = (
   };
 };
 
-const collectionAndEnvSources = (collection: OpenCollection | null, activeEnvName: string | null): VariableSource[] => {
+/** Presents an environment's external secrets as ordinary secret variables. */
+const externalSecretVariables = (environment: Environment | undefined): SecretVariable[] =>
+  ((environment?.externalSecrets?.variables ?? []) as ExternalSecretEntry[])
+    .filter((entry) => entry.name && isExternalSecretActive(entry))
+    .map((entry) => ({ name: entry.name, secret: true, value: entry.value ?? '' }) as unknown as SecretVariable);
+
+const collectionAndEnvSources = (
+  collection: OpenCollection | null,
+  activeEnvName: string | null,
+  withExternalSecrets = false
+): VariableSource[] => {
   const collectionVariables = (collection?.request?.variables ?? []) as (Variable | SecretVariable)[];
   const environments = (collection?.config?.environments ?? []) as Environment[];
   const activeEnvironment = environments.find((environment) => environment.name === activeEnvName);
-  return [
-    { scope: 'collection', variables: collectionVariables },
-    { scope: 'environment', variables: activeEnvironment?.variables }
-  ];
+  const sources: VariableSource[] = [{ scope: 'collection', variables: collectionVariables }];
+  if (withExternalSecrets) {
+    sources.push({ scope: '$secrets', variables: externalSecretVariables(activeEnvironment) });
+  }
+  sources.push({ scope: 'environment', variables: activeEnvironment?.variables });
+  return sources;
 };
 
 const folderVariables = (folder: Item): (Variable | SecretVariable)[] =>
@@ -194,21 +207,23 @@ export const ItemVariableResolverProvider: React.FC<{
   const activeEnvName = useAppSelector(selectActiveEnvName);
   const showVars = useAppSelector(selectShowVars);
 
+  // Both the docs pages and the playground mount this provider; only the
+  // playground passes `writable`, and only it can supply an external secret.
   const model = useMemo(() => {
-    const sources: VariableSource[] = collectionAndEnvSources(collection, activeEnvName);
+    const sources: VariableSource[] = collectionAndEnvSources(collection, activeEnvName, writable);
     for (const folder of ancestry) {
       sources.push({ scope: 'folder', variables: folderVariables(folder) });
     }
     if (item) sources.push(itemSource(item));
     return buildScopedVariableModel(sources);
-  }, [collection, activeEnvName, ancestry, item]);
+  }, [collection, activeEnvName, ancestry, item, writable]);
 
   const resolver = useMemo(() => makeResolver(model, showVars, activeEnvName), [model, showVars, activeEnvName]);
 
   const updateVariable = useCallback(
     (name: string, value: string) => {
       const { name: varName, scope } = resolver.lookup(name);
-      if (scope === 'environment') {
+      if (scope === 'environment' || scope === '$secrets') {
         if (activeEnvName) dispatch(setPlaygroundVariable({ scope, name: varName, value, envName: activeEnvName }));
       } else if (scope === 'collection') {
         dispatch(setPlaygroundVariable({ scope, name: varName, value }));
@@ -217,7 +232,7 @@ export const ItemVariableResolverProvider: React.FC<{
         if (itemUuid) dispatch(setPlaygroundVariable({ scope, name: varName, value, itemUuid }));
       } else if (scope === 'folder') {
         const owner = [...ancestry].reverse().find((folder) =>
-          folderVariables(folder).some((v) => v.name === varName && !v.disabled && !isSecretVariable(v))
+          folderVariables(folder).some((v) => v.name === varName && !v.disabled)
         );
         const itemUuid = getItemUuid(owner);
         if (itemUuid) dispatch(setPlaygroundVariable({ scope, name: varName, value, itemUuid }));

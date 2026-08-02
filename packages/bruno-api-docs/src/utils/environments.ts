@@ -3,7 +3,7 @@ import type { Variable, VariableValueType } from '@opencollection/types/common/v
 import { MANAGER_LABELS } from '../constants';
 import { getDescription, getVariableTypeLabel } from './request';
 import { descriptionText, resolveDescription } from './description';
-import { isSecretVariable, unwrapVariableValue } from './variableResolution';
+import { isSecretVariable, unwrapVariableValue, type ExternalSecretEntry } from './variableResolution';
 import { rowToVariable, toDataType } from './variableDataType';
 
 const humanizeManager = (type: string | undefined): string => {
@@ -75,6 +75,33 @@ interface ExternalSecretsConfig {
   type?: string;
   variables?: { name?: string; secretName?: string; enabled?: boolean; type?: VariableValueType }[];
 }
+
+/**
+ * Rebuild an environment's external secrets after the table has been edited.
+ *
+ * A table row holds only a name, a pointer and a toggle, so anything else on the
+ * entry has to be carried across by hand. In particular the hover card stores a
+ * typed-in `value` there, which a plain rebuild would throw away.
+ *
+ * `enabled` is the exception and is dropped on purpose: the toggle is written
+ * back as `disabled`, and an entry carrying both could contradict itself.
+ */
+export const mergeExternalSecretRows = (
+  existing: ExternalSecretEntry[] | undefined,
+  rows: { name: string; value: string; enabled: boolean }[],
+  pointerField: string
+): Record<string, unknown>[] => {
+  const byName = new Map((existing ?? []).map((variable) => [variable.name, variable]));
+  return rows.map((row) => {
+    const { enabled: _legacyToggle, ...carried } = byName.get(row.name) ?? {};
+    return {
+      ...carried,
+      name: row.name,
+      [pointerField]: row.value,
+      disabled: !row.enabled
+    };
+  });
+};
 
 export interface EnvironmentVariableRow {
   name: string;

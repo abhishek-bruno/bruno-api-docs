@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { StyledWrapper } from './StyledWrapper';
 import { IconCheck, IconCopy } from '@tabler/icons';
 import useCopy from '@/hooks/useCopy';
@@ -37,10 +37,15 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
       className={cx('copy-button', className)}
       onClick={copyResponse}
       aria-label={copied ? copiedLabel : label}
+      data-copied={copied ? 'true' : undefined}
       data-testid={testId}
       style={style}
     >
-      {copied ? <IconCheck size={16} strokeWidth={1} /> : <IconCopy size={16} strokeWidth={1} />}
+      {copied ? (
+        <IconCheck size={16} strokeWidth={1} data-testid={testId ? `${testId}-tick` : undefined} />
+      ) : (
+        <IconCopy size={16} strokeWidth={1} />
+      )}
     </StyledWrapper>
   );
 };
