@@ -14,6 +14,7 @@ export interface Tab {
   content: ReactNode;
   rightElement?: ReactNode;
   disabled?: boolean;
+  navLabel?: string;
 }
 
 interface TabsProps {
@@ -134,6 +135,9 @@ export const Tabs: React.FC<TabsProps> = ({
         onClick={() => activate(tab.id)}
         onKeyDown={(event) => onKeyDown(event, navIndex)}
         data-testid={tabButtonId(tab.id)}
+        data-nav-section={tab.navLabel}
+        data-nav-level={tab.navLabel ? 2 : undefined}
+        data-nav-activate={tab.navLabel ? '' : undefined}
       >
         {tab.label}
         {renderIndicator(tab)}
