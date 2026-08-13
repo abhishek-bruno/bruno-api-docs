@@ -50,7 +50,7 @@ export const mergeHeaders = (collection: OpenCollection, request: HttpRequest, r
     request.http = { method: getHttpMethod(request), url: getRequestUrl(request) };
   }
   if (!request.http.headers) {
-    request.http.headers = [];
+    request.http.headers = [...currentHeaders];
   }
 
   // Merge with existing request headers (request headers take precedence)
@@ -62,7 +62,7 @@ export const mergeHeaders = (collection: OpenCollection, request: HttpRequest, r
   // Add merged headers that don't exist in request
   headers.forEach((header, name) => {
     if (!requestHeaderMap.has(name)) {
-      request.http!.headers!.push(header);
+      request.http!.headers!.push({ ...header });
     }
   });
 };

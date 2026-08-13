@@ -4,6 +4,7 @@ import ResponseBodyTab from '../../Common/ResponseBodyTab';
 import ResponseHeadersTab from '../../Common/ResponseHeadersTab';
 import TestResultsTab from '../../Common/TestResultsTab';
 import ErrorBanner from '@/ui/ErrorBanner/ErrorBanner';
+import WarningBanner from '@/ui/WarningBanner/WarningBanner';
 import { SendIconWrapper, StyledWrapper } from './StyledWrapper';
 import { SendIcon } from '@/assets/icons';
 import ResponseFormatSelector from './ResponseFormatter/ResponseFormatter';
@@ -158,6 +159,11 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({ response, isLoading, orient
           />
         </div>
       )}
+      {response.warnings?.length ? (
+        <div className="pb-4 shrink-0">
+          <WarningBanner warnings={response.warnings} />
+        </div>
+      ) : null}
       <Tabs
         variant="responsive"
         testId="response-tabs"
